@@ -102,7 +102,7 @@ export default function Home() {
         page: pagination.current
       })
     };
-    console.log(sorter)
+
     if(sorter.order) {
       setFilter({
         ...filter,
