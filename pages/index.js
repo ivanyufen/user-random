@@ -1,7 +1,6 @@
 import Head from 'next/head'
 import { useState, useMemo, useEffect } from 'react';
 import { Input, Select, Button, Table } from 'antd';
-import request from '@/helpers/request';
 import useSwr from 'swr'
 import axios from 'axios';
 
