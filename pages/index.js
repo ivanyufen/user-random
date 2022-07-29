@@ -1,45 +1,17 @@
 import Head from 'next/head'
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Input, Select, Button, Table } from 'antd';
-import useSwr from 'swr'
 import axios from 'axios';
+import dayjs from 'dayjs';
 
 const { Search } = Input;
 const { Option } = Select;
-const columns = [
-  {
-    title: 'Username',
-    dataIndex: 'username',
-    defaultSortOrder: '',
-    sorter: true
-  },
-  {
-    title: 'Name',
-    dataIndex: 'name',
-    defaultSortOrder: '',
-    sorter: true
-  },
-  {
-    title: 'Email',
-    dataIndex: 'email',
-    defaultSortOrder: '',
-    sorter: true
-  },
-  {
-    title: 'Gender',
-    dataIndex: 'gender',
-    defaultSortOrder: '',
-    sorter: true
-  },
-  {
-    title: 'Registered Date',
-    dataIndex: 'registerDate',
-    defaultSortOrder: '',
-    sorter: true
-  },
-];
 
-const initialFilter = {
+const request = axios.create({
+  baseURL: 'https://randomuser.me/api'
+});
+
+const initialQuery = {
   page: 1,
   pageSize: 10,
   results: 10,
@@ -49,74 +21,93 @@ const initialFilter = {
   sortBy: ''
 };
 
-export default function Home() {
 
-  const [filter, setFilter] = useState({
-    ...initialFilter
-  });
+const Users = () => {
+  
+  const [query, setQuery] = useState({ ...initialQuery });
   const [tempKeyword, setTempKeyword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [users, setUsers] = useState([]);
 
-  const { data, mutate, error } = useSwr(['/api/user', filter]);
+  const processedUsers = () => users.map((user) => {
+    return {
+      username: user.login.username,
+      name: `${user.name.first} ${user.name.last}`,
+      email: user.email,
+      gender: user.gender,
+      registerDate: dayjs(user.registered.date).format('DD-MM-YYYY HH:mm')
+    }
+  });
 
-  if (error) return <div>Failed to load users</div>
+  useEffect(() => {
+    fetchUsers(query);
+  }, []);
 
-  let processedData = [];
-  if(data?.results) {
-    processedData = data.results.map(user => {
-      return {
-        username: user.login.username,
-        name: `${user.name.first} ${user.name.last}`,
-        email: user.email,
-        gender: user.gender,
-        registerDate: user.registered.date
+  useEffect(() => {
+    fetchUsers(query);
+  }, [query])
+
+  const fetchUsers = useCallback(async (queryProps) => {
+    setIsLoading(true);
+    setUsers([]);
+    const params = {};
+    for(let key in queryProps) {
+      if(queryProps[key]) {
+        params[key] = queryProps[key];
       }
-    });
-  }
+    }
+    console.log("fetchuser param", params)
+    request.get('/', { params })
+    .then((res) => {
+      if(res.data) {
+        setUsers(res.data.results);
+      };
+      setIsLoading(false);
+    })
+  }, []);
 
   const onSearch = keyword => {
-    setFilter({
-      ...filter,
+    setQuery({
+      ...query,
       keyword
     });
   }
   const handleChangeGender = gender => {
-    setFilter({
-      ...filter,
+    setQuery({
+      ...query,
       gender
     });
   };
 
-  const handleResetFilter = () => {
-    setFilter({
-      ...initialFilter
+  const handleResetQuery = () => {
+    setQuery({
+      ...initialQuery
     });
     setTempKeyword('');
   };
-  
 
   const onChange = (pagination, filters, sorter, extra) => {
-    if(filter.page !== pagination.current) {
-      setFilter({
-        ...filter,
+    if(query.page !== pagination.current) {
+      setQuery({
+        ...query,
         page: pagination.current
       })
     };
 
     if(sorter.order) {
-      setFilter({
-        ...filter,
+      setQuery({
+        ...query,
         sortOrder: sorter.order,
         sortBy: sorter.field
       })
-    } else if(!sorter.order && filter.sortOrder && filter.sortBy) {
-      setFilter({
-        ...filter,
+    } else if(!sorter.order && query.sortOrder && query.sortBy) {
+      setQuery({
+        ...query,
         sortOrder: '',
         sortBy: ''
       })
     }
   };
-
 
   return (
     <>
@@ -128,6 +119,7 @@ export default function Home() {
         <div style={{ display: "flex", gap: 20 }}>
           <div>
             <Search
+              disabled={isLoading}
               placeholder="Search.."
               allowClear
               onSearch={onSearch}
@@ -137,29 +129,62 @@ export default function Home() {
             />
           </div>
           <div>
-          <Select defaultValue="all" value={filter.value} style={{ width: 120 }} onChange={handleChangeGender}>
-            <Option value="all">All</Option>
+          <Select disabled={isLoading} defaultValue="" value={query.gender} style={{ width: 120 }} onChange={handleChangeGender}>
+            <Option value="">All</Option>
             <Option value="male">Male</Option>
             <Option value="female">Female</Option>
           </Select>
           </div>
           <div>
-          <Button type="primary" onClick={handleResetFilter}>Reset Filter</Button>
+          <Button disabled={isLoading} type="primary" onClick={handleResetQuery}>Reset Filter</Button>
           </div>
         </div>
         <div style={{ marginTop: '5em' }}>
           <Table
-            columns={columns}
-            dataSource={processedData}
+            columns={[
+              {
+                title: 'Username',
+                dataIndex: 'username',
+                defaultSortOrder: '',
+                sorter: true
+              },
+              {
+                title: 'Name',
+                dataIndex: 'name',
+                defaultSortOrder: '',
+                sorter: true
+              },
+              {
+                title: 'Email',
+                dataIndex: 'email',
+                defaultSortOrder: '',
+                sorter: true
+              },
+              {
+                title: 'Gender',
+                dataIndex: 'gender',
+                defaultSortOrder: '',
+                sorter: true
+              },
+              {
+                title: 'Registered Date',
+                dataIndex: 'registerDate',
+                defaultSortOrder: '',
+                sorter: true
+              },
+            ]}
+            dataSource={processedUsers()}
             onChange={onChange}
             pagination={{
               defaultPageSize: 5,
-              current: filter.page
+              current: query.page
             }}
-            loading={!data && !error}
+            loading={isLoading}
           />
         </div>
       </div>
     </>
   )
-}
+};
+
+export default Users;
